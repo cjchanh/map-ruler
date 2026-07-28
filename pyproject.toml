@@ -29,4 +29,4 @@ map-ruler = "map_ruler.cli:main"
 include = ["map_ruler*"]
 
 [project.urls]
-Homepage = "https://github.com/centennial-defense/map-ruler"
+Homepage = "https://github.com/cjchanh/map-ruler"
