@@ -37,6 +37,8 @@ def plot_from_receipt(
     out_path: Path,
     title: str | None = None,
     vertices_path: str | Path | None = None,
+    basemap: bool = False,
+    basemap_source: str = "esri",
 ) -> Path:
     """Render a receipt's candidates (+ optional vertices) to PNG."""
     plt, MplPoly = _require_matplotlib()
@@ -58,10 +60,30 @@ def plot_from_receipt(
         "#e67e22",
     ]
 
-    # We don't store full rings in receipt — re-fetch is expensive.
-    # Plot candidate centroids + bbox as rectangles in local EN using
-    # offset + bbox_ft when full rings unavailable.
-    # Prefer: if primary has vertices file, plot that polyline.
+    basemap_note = ""
+    if basemap:
+        try:
+            from map_ruler.tiles import fetch_underlay
+
+            half = float((receipt.get("query") or {}).get("radius_m") or 60.0)
+            half = max(40.0, min(120.0, half * 1.2))
+            under = fetch_underlay(
+                pin_lat=float(pin_lat),
+                pin_lon=float(pin_lon),
+                half_span_m=half,
+                source=basemap_source,
+            )
+            ax.imshow(
+                under["image"],
+                extent=under["extent"],
+                origin="upper",
+                zorder=0,
+                alpha=0.95,
+            )
+            basemap_note = f" · basemap={under['source']} z{under['zoom']} ({under['tile_count']} tiles)"
+        except Exception as e:  # noqa: BLE001 — underlay optional
+            basemap_note = f" · basemap failed: {e}"
+
     plotted_any = False
 
     for i, c in enumerate(receipt.get("candidates") or []):
@@ -78,10 +100,11 @@ def plot_from_receipt(
                 xy,
                 closed=True,
                 facecolor=color,
-                alpha=0.4,
-                edgecolor=color,
-                linewidth=1.8,
+                alpha=0.35 if basemap else 0.4,
+                edgecolor="white" if basemap else color,
+                linewidth=2.0 if basemap else 1.8,
                 label=f"{c.get('id')} · {c.get('footprint_sqft')} ft²",
+                zorder=2,
             )
             ax.add_patch(poly)
             e = sum(p[0] for p in xy[:-1]) / max(1, len(xy) - 1)
@@ -180,9 +203,10 @@ def plot_from_receipt(
     ax.axvline(0, color="#bbb", lw=0.5)
 
     # 10 ft grid
+    grid_color = "#ffffff55" if basemap else "#f0f0f0"
     for g in range(-200, 201, 10):
-        ax.axhline(g * 0.3048, color="#f0f0f0", lw=0.4)
-        ax.axvline(g * 0.3048, color="#f0f0f0", lw=0.4)
+        ax.axhline(g * 0.3048, color=grid_color, lw=0.4, zorder=1)
+        ax.axvline(g * 0.3048, color=grid_color, lw=0.4, zorder=1)
 
     ax.set_aspect("equal")
     # Autoscale with pad
@@ -216,6 +240,8 @@ def plot_from_receipt(
         default_title += f"\nprimary {primary.get('footprint_sqft')} ft²"
     if primary.get("length_ft"):
         default_title += f" · length {primary.get('length_ft')} ft"
+    if basemap_note:
+        default_title += basemap_note
     ax.set_title(title or default_title, fontsize=11)
     ax.legend(loc="upper left", fontsize=7, framealpha=0.9)
     ax.annotate("N", xy=(0.92, 0.95), xycoords="axes fraction", fontsize=14, fontweight="bold")

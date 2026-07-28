@@ -39,8 +39,15 @@ python3 -m unittest discover -s tests -v
 - Network: Nominatim + Overpass on measure/plot.
 - Irreversible: `git push` / public GitHub — needs operator commit line.
 
+## Install for agents
+
+```bash
+bash ~/Workspace/active/map-ruler/scripts/install-pipx.sh
+# or: PYTHONPATH=~/Workspace/active/map-ruler python3 -m map_ruler ...
+```
+
 ## Next product bricks
 
-- Tile basemap underlay in plot
 - County GIS parcel rings
 - Auto car detection (optional; not default)
+- Public GitHub: `cjchanh/map-ruler` (when pushed)

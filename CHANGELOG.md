@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Multi-mirror Overpass with exponential backoff, bbox query, radius filter
+- `plot --basemap` satellite underlay (Esri World Imagery / OSM tiles)
+- `scripts/install-pipx.sh` + optional `[plot]` extras (matplotlib, Pillow)
+- Offline tile math tests
+
 ## 0.4.0
 
 - Store `coords_latlon` rings on candidates/primary (plot without Overpass re-fetch)

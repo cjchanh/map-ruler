@@ -91,6 +91,17 @@ def main(argv: list[str] | None = None) -> int:
         help="Re-fetch OSM rings and plot true polygons (network)",
     )
     p.add_argument(
+        "--basemap",
+        action="store_true",
+        help="Satellite tile underlay (Esri World Imagery by default; needs network + Pillow)",
+    )
+    p.add_argument(
+        "--basemap-source",
+        choices=["esri", "osm"],
+        default="esri",
+        help="Tile source for --basemap",
+    )
+    p.add_argument(
         "--scale-segment",
         type=str,
         default=None,
@@ -203,6 +214,8 @@ def _cmd_plot(args: argparse.Namespace) -> int:
                 receipt,
                 out_path=args.out,
                 vertices_path=args.vertices,
+                basemap=args.basemap,
+                basemap_source=args.basemap_source,
             )
         else:
             receipt = measure(
@@ -225,6 +238,7 @@ def _cmd_plot(args: argparse.Namespace) -> int:
                 args.feature in {"roof", "building"}
                 and not args.vertices
                 and not has_rings
+                and not args.basemap
             ):
                 geo = receipt.get("geocode") or {}
                 png, receipt = plot_true_footprints(
@@ -240,6 +254,8 @@ def _cmd_plot(args: argparse.Namespace) -> int:
                     receipt,
                     out_path=args.out,
                     vertices_path=args.vertices,
+                    basemap=args.basemap,
+                    basemap_source=args.basemap_source,
                 )
     except PlotError as e:
         print(f"ERROR: {e}", file=sys.stderr)

@@ -41,12 +41,21 @@ Doctrine: *It doesn’t answer. It testifies.*
 
 ```bash
 cd ~/Workspace/active/map-ruler
-python3 -m pip install -e .
-# or run without install:
+
+# pipx (recommended)
+bash scripts/install-pipx.sh
+# or: pipx install --editable '.[plot]'
+
+# pip editable
+python3 -m pip install -e '.[plot]'
+
+# no install
 PYTHONPATH=. python3 -m map_ruler measure --address "..." --pretty
 ```
 
-No third-party Python deps. Needs network for Nominatim + Overpass.
+**Core measure:** zero required deps.  
+**Plot + basemap:** `matplotlib` + `Pillow` (via `[plot]` extra).  
+Network: Nominatim + Overpass (+ tile hosts when `--basemap`).
 
 ## CLI
 
@@ -121,6 +130,10 @@ python3 -m map_ruler plot \
   --out receipts/ontario-demo-roof.png \
   --receipt-out receipts/ontario-demo-roof.json
 
+# Satellite underlay
+python3 -m map_ruler plot --receipt receipts/ontario-demo-roof.json \
+  --basemap --basemap-source esri --out receipts/ontario-demo-sat.png
+
 # Fence path on top of context (vertices required for path)
 python3 -m map_ruler plot \
   --address "..." --feature fence \
@@ -128,7 +141,7 @@ python3 -m map_ruler plot \
   --out receipts/fence.png
 ```
 
-Plot needs `matplotlib` (`pip install matplotlib`). Core measure stays dependency-free.
+Plot needs `matplotlib` (+ `Pillow` for `--basemap`).
 
 ## Tests
 

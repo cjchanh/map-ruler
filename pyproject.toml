@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "map-ruler"
-version = "0.4.0"
+version = "0.5.0"
 description = "Open spatial measurements that testify — roof/fence/driveway measure with scale chain + sealed receipts"
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,8 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = []
+plot = ["matplotlib>=3.7", "Pillow>=10.0"]
+dev = ["matplotlib>=3.7", "Pillow>=10.0"]
 
 [project.scripts]
 map-ruler = "map_ruler.cli:main"
