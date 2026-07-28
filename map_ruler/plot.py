@@ -66,13 +66,45 @@ def plot_from_receipt(
 
     for i, c in enumerate(receipt.get("candidates") or []):
         color = colors[i % len(colors)]
+        ring = c.get("coords_latlon")
+        if ring and len(ring) >= 3:
+            xy = [
+                to_xy(float(p[0]), float(p[1]), origin_lat=float(pin_lat), origin_lon=float(pin_lon))
+                for p in ring
+            ]
+            if xy[0] != xy[-1]:
+                xy = xy + [xy[0]]
+            poly = MplPoly(
+                xy,
+                closed=True,
+                facecolor=color,
+                alpha=0.4,
+                edgecolor=color,
+                linewidth=1.8,
+                label=f"{c.get('id')} · {c.get('footprint_sqft')} ft²",
+            )
+            ax.add_patch(poly)
+            e = sum(p[0] for p in xy[:-1]) / max(1, len(xy) - 1)
+            n = sum(p[1] for p in xy[:-1]) / max(1, len(xy) - 1)
+            ax.text(
+                e,
+                n,
+                f"{c.get('footprint_sqft')}",
+                ha="center",
+                va="center",
+                fontsize=8,
+                fontweight="bold",
+                color="#111",
+            )
+            plotted_any = True
+            continue
+        # Fallback: AABB from offset + bbox_ft (v0.3 receipts without rings)
         e = float(c.get("offset_E_m") or 0)
         n = float(c.get("offset_N_m") or 0)
         bb = c.get("bbox_ft") or {}
         w_m = float(bb.get("width") or 0) * 0.3048
         h_m = float(bb.get("height") or 0) * 0.3048
         if w_m > 0 and h_m > 0:
-            # Axis-aligned bbox centered on offset (approx — not true polygon)
             half_w, half_h = w_m / 2, h_m / 2
             corners = [
                 (e - half_w, n - half_h),
@@ -87,7 +119,7 @@ def plot_from_receipt(
                 alpha=0.35,
                 edgecolor=color,
                 linewidth=1.5,
-                label=f"{c.get('id')} · {c.get('footprint_sqft')} ft²",
+                label=f"{c.get('id')} · {c.get('footprint_sqft')} ft² (bbox)",
             )
             ax.add_patch(poly)
             ax.text(

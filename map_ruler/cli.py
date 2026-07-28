@@ -48,6 +48,23 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="With --vertices, skip nearby building context fetch",
     )
+    m.add_argument(
+        "--scale-segment",
+        type=str,
+        default=None,
+        help="Two-point ground scale: lat1,lon1,lat2,lon2 (e.g. car bumpers)",
+    )
+    m.add_argument(
+        "--scale-length-ft",
+        type=float,
+        default=None,
+        help="Declared true length of scale segment in feet (default 15.5 sedan mid)",
+    )
+    m.add_argument(
+        "--no-rings",
+        action="store_true",
+        help="Omit coords_latlon from receipt (smaller JSON)",
+    )
     m.add_argument("--out", type=Path, default=None, help="Write receipt JSON")
     m.add_argument("--pretty", action="store_true")
     m.add_argument("--max-candidates", type=int, default=12)
@@ -73,6 +90,13 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Re-fetch OSM rings and plot true polygons (network)",
     )
+    p.add_argument(
+        "--scale-segment",
+        type=str,
+        default=None,
+        help="Two-point ground scale: lat1,lon1,lat2,lon2",
+    )
+    p.add_argument("--scale-length-ft", type=float, default=None)
     p.add_argument(
         "--out",
         type=Path,
@@ -116,6 +140,9 @@ def _cmd_measure(args: argparse.Namespace) -> int:
         max_candidates=args.max_candidates,
         vertices_path=args.vertices,
         include_building_context=not args.no_building_context,
+        scale_segment=args.scale_segment,
+        scale_length_ft=args.scale_length_ft,
+        include_rings=not args.no_rings,
     )
     text = json.dumps(receipt, indent=2 if args.pretty else None, sort_keys=args.pretty)
     if args.out:
@@ -186,9 +213,19 @@ def _cmd_plot(args: argparse.Namespace) -> int:
                 radius_m=args.radius_m,
                 calibrators=_cals(args.calibrators),
                 vertices_path=args.vertices,
+                scale_segment=args.scale_segment,
+                scale_length_ft=args.scale_length_ft,
+                include_rings=True,
             )
-            # For best building plots without --true-footprints, upgrade when roof
-            if args.feature in {"roof", "building"} and not args.vertices:
+            # Prefer receipt rings (no second Overpass) unless --true-footprints
+            has_rings = any(
+                (c.get("coords_latlon") for c in (receipt.get("candidates") or []))
+            )
+            if (
+                args.feature in {"roof", "building"}
+                and not args.vertices
+                and not has_rings
+            ):
                 geo = receipt.get("geocode") or {}
                 png, receipt = plot_true_footprints(
                     lat=geo["lat"],

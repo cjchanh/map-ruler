@@ -13,9 +13,14 @@ map-ruler measure --address "Ontario Legislative Building, 111 Wellesley Street 
 map-ruler measure --address "..." --feature fence \
   --vertices examples/ontario-demo-fence.json --pretty
 
-# PNG overlay (true OSM building rings)
+# PNG overlay (rings from receipt — no second fetch when coords_latlon present)
 map-ruler plot --address "Ontario Legislative Building, 111 Wellesley Street West, Toronto, ON, Canada" \
   --feature roof --out receipts/ontario-demo.png --receipt-out receipts/ontario-demo.json
+
+# Two-point car (or any known length) scale check
+map-ruler measure --address "..." --feature roof \
+  --scale-segment "43.66250,-79.39120,43.66250,-79.39105" \
+  --scale-length-ft 15.5 --pretty
 ```
 
 ## Why
