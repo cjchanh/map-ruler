@@ -17,16 +17,14 @@ def main(argv: list[str] | None = None) -> int:
         description=(
             "Open spatial measure-testify: geocode → OSM/MS building footprints → "
             "scale chain → sealed receipt. Optional --vertices for fence/driveway/roof. "
-            "Footprint ≠ GLA."
+            "plot: PNG overlay. Footprint ≠ GLA."
         ),
     )
     parser.add_argument("--version", action="version", version=f"map-ruler {__version__}")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     m = sub.add_parser("measure", help="Measure buildings or vertex paths near an address/pin")
-    m.add_argument("--address", type=str, default=None, help="Street address")
-    m.add_argument("--lat", type=float, default=None)
-    m.add_argument("--lon", type=float, default=None)
+    _add_common_location(m)
     m.add_argument(
         "--feature",
         choices=["roof", "fence", "driveway", "building", "parcel"],
@@ -43,60 +41,190 @@ def main(argv: list[str] | None = None) -> int:
         "--vertices",
         type=Path,
         default=None,
-        help="GeoJSON LineString/Polygon or [[lat,lon],...] JSON for fence/driveway/roof",
+        help="GeoJSON LineString/Polygon or [[lat,lon],...] JSON",
     )
     m.add_argument(
         "--no-building-context",
         action="store_true",
         help="With --vertices, skip nearby building context fetch",
     )
-    m.add_argument(
-        "--out",
+    m.add_argument("--out", type=Path, default=None, help="Write receipt JSON")
+    m.add_argument("--pretty", action="store_true")
+    m.add_argument("--max-candidates", type=int, default=12)
+
+    p = sub.add_parser("plot", help="Measure (or load receipt) and write PNG overlay")
+    _add_common_location(p)
+    p.add_argument(
+        "--feature",
+        choices=["roof", "fence", "driveway", "building", "parcel"],
+        default="roof",
+    )
+    p.add_argument("--radius-m", type=float, default=60.0)
+    p.add_argument("--calibrators", type=str, default="basemap")
+    p.add_argument("--vertices", type=Path, default=None)
+    p.add_argument(
+        "--receipt",
         type=Path,
         default=None,
-        help="Write receipt JSON to this path",
+        help="Existing receipt JSON (skip live measure)",
     )
-    m.add_argument(
-        "--pretty",
+    p.add_argument(
+        "--true-footprints",
         action="store_true",
-        help="Pretty-print JSON to stdout",
+        help="Re-fetch OSM rings and plot true polygons (network)",
     )
-    m.add_argument("--max-candidates", type=int, default=12)
+    p.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help="Output PNG path",
+    )
+    p.add_argument(
+        "--receipt-out",
+        type=Path,
+        default=None,
+        help="Also write receipt JSON",
+    )
 
     args = parser.parse_args(argv)
 
     if args.cmd == "measure":
-        cals = [c.strip() for c in args.calibrators.split(",") if c.strip()]
-        receipt = measure(
-            address=args.address,
-            lat=args.lat,
-            lon=args.lon,
-            feature=args.feature,
-            radius_m=args.radius_m,
-            calibrators=cals,
-            max_candidates=args.max_candidates,
-            vertices_path=args.vertices,
-            include_building_context=not args.no_building_context,
-        )
-        text = json.dumps(receipt, indent=2 if args.pretty else None, sort_keys=args.pretty)
-        if args.out:
-            args.out.parent.mkdir(parents=True, exist_ok=True)
-            args.out.write_text(json.dumps(receipt, indent=2) + "\n")
-            primary = receipt.get("primary") or {}
-            print(
-                f"status={receipt.get('status')} "
-                f"sqft={primary.get('footprint_sqft')} "
-                f"length_ft={primary.get('length_ft')} "
-                f"gla={primary.get('gla_band_sqft')} "
-                f"out={args.out}",
-                file=sys.stderr,
-            )
-        print(text if args.pretty or not args.out else json.dumps(receipt, indent=2))
-        if receipt.get("status") == "ERROR":
-            return 2
-        return 0
-
+        return _cmd_measure(args)
+    if args.cmd == "plot":
+        return _cmd_plot(args)
     return 1
+
+
+def _add_common_location(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--address", type=str, default=None)
+    p.add_argument("--lat", type=float, default=None)
+    p.add_argument("--lon", type=float, default=None)
+
+
+def _cals(s: str) -> list[str]:
+    return [c.strip() for c in s.split(",") if c.strip()]
+
+
+def _cmd_measure(args: argparse.Namespace) -> int:
+    receipt = measure(
+        address=args.address,
+        lat=args.lat,
+        lon=args.lon,
+        feature=args.feature,
+        radius_m=args.radius_m,
+        calibrators=_cals(args.calibrators),
+        max_candidates=args.max_candidates,
+        vertices_path=args.vertices,
+        include_building_context=not args.no_building_context,
+    )
+    text = json.dumps(receipt, indent=2 if args.pretty else None, sort_keys=args.pretty)
+    if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(receipt, indent=2) + "\n")
+        primary = receipt.get("primary") or {}
+        print(
+            f"status={receipt.get('status')} "
+            f"sqft={primary.get('footprint_sqft')} "
+            f"length_ft={primary.get('length_ft')} "
+            f"out={args.out}",
+            file=sys.stderr,
+        )
+    print(text if args.pretty or not args.out else json.dumps(receipt, indent=2))
+    return 2 if receipt.get("status") == "ERROR" else 0
+
+
+def _cmd_plot(args: argparse.Namespace) -> int:
+    from map_ruler.plot import PlotError, plot_from_receipt, plot_true_footprints
+
+    try:
+        if args.true_footprints:
+            if args.lat is None or args.lon is None:
+                # need pin — measure first for geocode if address only
+                if not args.address and args.receipt is None:
+                    print("plot --true-footprints needs --address or --lat/--lon", file=sys.stderr)
+                    return 2
+            if args.receipt:
+                rec = json.loads(args.receipt.read_text(encoding="utf-8"))
+                lat = rec["geocode"]["lat"]
+                lon = rec["geocode"]["lon"]
+                address = (rec.get("query") or {}).get("address")
+            elif args.lat is not None and args.lon is not None:
+                lat, lon = args.lat, args.lon
+                address = args.address
+            else:
+                # geocode via measure
+                rec0 = measure(
+                    address=args.address,
+                    feature="roof",
+                    radius_m=args.radius_m,
+                    calibrators=_cals(args.calibrators),
+                )
+                lat = rec0["geocode"]["lat"]
+                lon = rec0["geocode"]["lon"]
+                address = args.address
+            png, receipt = plot_true_footprints(
+                lat=lat,
+                lon=lon,
+                radius_m=args.radius_m,
+                out_path=args.out,
+                address=address,
+                calibrators=_cals(args.calibrators),
+            )
+        elif args.receipt:
+            receipt = json.loads(args.receipt.read_text(encoding="utf-8"))
+            png = plot_from_receipt(
+                receipt,
+                out_path=args.out,
+                vertices_path=args.vertices,
+            )
+        else:
+            receipt = measure(
+                address=args.address,
+                lat=args.lat,
+                lon=args.lon,
+                feature=args.feature,
+                radius_m=args.radius_m,
+                calibrators=_cals(args.calibrators),
+                vertices_path=args.vertices,
+            )
+            # For best building plots without --true-footprints, upgrade when roof
+            if args.feature in {"roof", "building"} and not args.vertices:
+                geo = receipt.get("geocode") or {}
+                png, receipt = plot_true_footprints(
+                    lat=geo["lat"],
+                    lon=geo["lon"],
+                    radius_m=args.radius_m,
+                    out_path=args.out,
+                    address=args.address,
+                    calibrators=_cals(args.calibrators),
+                )
+            else:
+                png = plot_from_receipt(
+                    receipt,
+                    out_path=args.out,
+                    vertices_path=args.vertices,
+                )
+    except PlotError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
+    except Exception as e:  # noqa: BLE001
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
+
+    if args.receipt_out:
+        args.receipt_out.parent.mkdir(parents=True, exist_ok=True)
+        args.receipt_out.write_text(json.dumps(receipt, indent=2) + "\n")
+
+    primary = receipt.get("primary") or {}
+    print(
+        f"status={receipt.get('status')} "
+        f"sqft={primary.get('footprint_sqft')} "
+        f"length_ft={primary.get('length_ft')} "
+        f"png={png}",
+        file=sys.stderr,
+    )
+    print(str(png))
+    return 2 if receipt.get("status") == "ERROR" else 0
 
 
 if __name__ == "__main__":

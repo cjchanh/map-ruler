@@ -12,6 +12,10 @@ map-ruler measure --address "Ontario Legislative Building, 111 Wellesley Street 
 # Fence / driveway with operator vertices (GeoJSON or [[lat,lon],...])
 map-ruler measure --address "..." --feature fence \
   --vertices examples/ontario-demo-fence.json --pretty
+
+# PNG overlay (true OSM building rings)
+map-ruler plot --address "Ontario Legislative Building, 111 Wellesley Street West, Toronto, ON, Canada" \
+  --feature roof --out receipts/ontario-demo.png --receipt-out receipts/ontario-demo.json
 ```
 
 ## Why
@@ -103,6 +107,24 @@ Primary fields:
 Grok: `~/.grok/skills/map-ruler/SKILL.md`  
 Invoke when the operator wants roof/fence/driveway measure with a receipt.
 
+## Plot
+
+```bash
+# True Microsoft/OSM footprints around address
+python3 -m map_ruler plot \
+  --address "Ontario Legislative Building, 111 Wellesley Street West, Toronto, ON, Canada" \
+  --out receipts/ontario-demo-roof.png \
+  --receipt-out receipts/ontario-demo-roof.json
+
+# Fence path on top of context (vertices required for path)
+python3 -m map_ruler plot \
+  --address "..." --feature fence \
+  --vertices examples/ontario-demo-fence.json \
+  --out receipts/fence.png
+```
+
+Plot needs `matplotlib` (`pip install matplotlib`). Core measure stays dependency-free.
+
 ## Tests
 
 ```bash
@@ -110,7 +132,7 @@ cd ~/Workspace/active/map-ruler
 python3 -m unittest discover -s tests -v
 ```
 
-Offline unit tests only. Live dogfood needs network.
+Offline unit tests only. Live dogfood / plot need network (plot needs matplotlib).
 
 ## Dogfood
 
