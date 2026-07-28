@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "map-ruler"
+version = "0.2.0"
+description = "Open spatial measurements that testify — roof/fence/driveway measure with scale chain + sealed receipts"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "Centennial Defense Systems / map-ruler contributors" }]
+keywords = ["gis", "measure", "osm", "receipt", "cds", "testify"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: GIS",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = []
+
+[project.scripts]
+map-ruler = "map_ruler.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["map_ruler*"]
+
+[project.urls]
+Homepage = "https://github.com/centennial-defense/map-ruler"

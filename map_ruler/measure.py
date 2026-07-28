@@ -1,0 +1,346 @@
+"""Core measure pipeline: geocode → footprints / vertices → scale → receipt."""
+
+from __future__ import annotations
+
+import math
+from pathlib import Path
+from typing import Any, Sequence
+
+from map_ruler.footprints import FootprintError, fetch_buildings_overpass
+from map_ruler.geocode import GeocodeError, geocode_address
+from map_ruler.geometry import (
+    bbox_ft,
+    centroid,
+    edge_lengths_ft,
+    gla_band_from_footprint,
+    m2_to_sqft,
+    m_to_ft,
+    path_length_m,
+    polygon_sha256,
+    ring_area_m2,
+    to_xy,
+)
+from map_ruler.receipt import base_receipt
+from map_ruler.scale import build_scale_chain, combined_uncertainty_pct
+from map_ruler.vertices import VerticesError, load_vertices
+
+METHOD = (
+    "OSM building ways (often source=microsoft/BuildingFootprints) within radius; "
+    "or operator/agent --vertices polyline/polygon; "
+    "local equirectangular shoelace/path length; scale_chain calibrators; "
+    "primary = closest footprint to pin OR vertex measurement."
+)
+
+
+def measure(
+    *,
+    address: str | None = None,
+    lat: float | None = None,
+    lon: float | None = None,
+    feature: str = "roof",
+    radius_m: float = 60.0,
+    calibrators: Sequence[str] = ("basemap",),
+    max_candidates: int = 12,
+    vertices_path: str | Path | None = None,
+    include_building_context: bool = True,
+) -> dict[str, Any]:
+    """Run measure-testify. Returns sealed receipt dict."""
+    feature = (feature or "roof").lower().strip()
+    if feature not in {"roof", "fence", "driveway", "building", "parcel"}:
+        return base_receipt(
+            status="ERROR",
+            query=_query(address, lat, lon, feature, radius_m, calibrators, vertices_path),
+            geocode=None,
+            scale_chain=[],
+            candidates=[],
+            primary=None,
+            method=METHOD,
+            error={"kind": "VALIDATION", "message": f"unsupported feature: {feature}"},
+        )
+
+    query = _query(address, lat, lon, feature, radius_m, calibrators, vertices_path)
+
+    try:
+        geocode = _resolve_geocode(address=address, lat=lat, lon=lon)
+    except GeocodeError as e:
+        return base_receipt(
+            status="ERROR",
+            query=query,
+            geocode=None,
+            scale_chain=[],
+            candidates=[],
+            primary=None,
+            method=METHOD,
+            error={"kind": "GEOCODE", "message": str(e)},
+        )
+
+    pin_lat = geocode["lat"]
+    pin_lon = geocode["lon"]
+
+    try:
+        chain = build_scale_chain(list(calibrators), lat=pin_lat)
+    except ValueError as e:
+        return base_receipt(
+            status="ERROR",
+            query=query,
+            geocode=geocode,
+            scale_chain=[],
+            candidates=[],
+            primary=None,
+            method=METHOD,
+            error={"kind": "VALIDATION", "message": str(e)},
+        )
+
+    scale_dicts = [c.to_dict() for c in chain]
+    unc = combined_uncertainty_pct(chain)
+
+    # Operator/agent vertex path — works for any feature
+    if vertices_path is not None:
+        try:
+            coords = load_vertices(vertices_path)
+        except VerticesError as e:
+            return base_receipt(
+                status="ERROR",
+                query=query,
+                geocode=geocode,
+                scale_chain=scale_dicts,
+                candidates=[],
+                primary=None,
+                method=METHOD,
+                error={"kind": "VERTICES", "message": str(e)},
+            )
+        primary = _measure_vertices(
+            coords,
+            pin_lat=pin_lat,
+            pin_lon=pin_lon,
+            feature=feature,
+            unc=unc,
+            source_path=str(vertices_path),
+        )
+        context: list[dict[str, Any]] = []
+        if include_building_context and feature in {"fence", "driveway"}:
+            try:
+                buildings = fetch_buildings_overpass(pin_lat, pin_lon, radius_m=radius_m)
+                context = _score_buildings(buildings, pin_lat, pin_lon)[:max_candidates]
+            except FootprintError:
+                context = []
+        return base_receipt(
+            status="CLEAN",
+            query=query,
+            geocode=geocode,
+            scale_chain=scale_dicts,
+            candidates=context,
+            primary=primary,
+            method=METHOD + f" vertex_mode=1 combined_uncertainty_pct={unc}.",
+        )
+
+    # Fence/driveway without vertices: context only
+    if feature in {"fence", "driveway"}:
+        try:
+            buildings = fetch_buildings_overpass(pin_lat, pin_lon, radius_m=radius_m)
+        except FootprintError:
+            buildings = []
+        candidates = _score_buildings(buildings, pin_lat, pin_lon)[:max_candidates]
+        return base_receipt(
+            status="PARTIAL",
+            query=query,
+            geocode=geocode,
+            scale_chain=scale_dicts,
+            candidates=candidates,
+            primary=candidates[0] if candidates else None,
+            method=METHOD
+            + f" Feature={feature}: pass --vertices for length/area. "
+            f"combined_uncertainty_pct={unc}.",
+            error={
+                "kind": "FEATURE_PARTIAL",
+                "message": (
+                    f"{feature} requires --vertices (GeoJSON LineString/Polygon or "
+                    "[[lat,lon],...]). Building context candidates included."
+                ),
+            },
+        )
+
+    # roof / building / parcel
+    try:
+        buildings = fetch_buildings_overpass(pin_lat, pin_lon, radius_m=radius_m)
+    except FootprintError as e:
+        return base_receipt(
+            status="ERROR",
+            query=query,
+            geocode=geocode,
+            scale_chain=scale_dicts,
+            candidates=[],
+            primary=None,
+            method=METHOD,
+            error={"kind": "FOOTPRINT", "message": str(e)},
+        )
+
+    if not buildings:
+        return base_receipt(
+            status="ABSTAIN",
+            query=query,
+            geocode=geocode,
+            scale_chain=scale_dicts,
+            candidates=[],
+            primary=None,
+            method=METHOD,
+            error={
+                "kind": "NO_BUILDINGS",
+                "message": f"no OSM buildings within {radius_m}m of pin",
+            },
+        )
+
+    candidates = _score_buildings(buildings, pin_lat, pin_lon)[:max_candidates]
+    primary = dict(candidates[0])
+    primary["combined_uncertainty_pct"] = unc
+
+    status = "CLEAN"
+    if len(candidates) >= 2 and candidates[1]["dist_m_from_pin"] < 20.0:
+        status = "PARTIAL"
+        primary["selection_note"] = (
+            "Multiple footprints within 20m of pin — primary is closest only; "
+            "confirm rear cottage vs main house on satellite, or pass --vertices."
+        )
+
+    return base_receipt(
+        status=status,
+        query=query,
+        geocode=geocode,
+        scale_chain=scale_dicts,
+        candidates=candidates,
+        primary=primary,
+        method=METHOD + f" combined_uncertainty_pct={unc}.",
+    )
+
+
+def _measure_vertices(
+    coords: list[tuple[float, float]],
+    *,
+    pin_lat: float,
+    pin_lon: float,
+    feature: str,
+    unc: float,
+    source_path: str,
+) -> dict[str, Any]:
+    """Build primary measurement object from operator vertices."""
+    closed = len(coords) >= 4 and coords[0] == coords[-1]
+    # Auto-close for area if polygon-like (≥3 pts and feature is roof/parcel/building)
+    want_area = feature in {"roof", "building", "parcel"} or closed
+    work = list(coords)
+    if want_area and not closed and len(work) >= 3:
+        # compute both open length and closed area
+        pass
+
+    length_m = path_length_m(work, origin_lat=pin_lat, origin_lon=pin_lon)
+    length_ft = m_to_ft(length_m)
+
+    area_m2 = 0.0
+    area_sqft = 0.0
+    if want_area and len(work) >= 3:
+        area_m2 = ring_area_m2(work, origin_lat=pin_lat, origin_lon=pin_lon)
+        area_sqft = m2_to_sqft(area_m2)
+    elif feature in {"fence", "driveway"} and len(work) >= 3 and closed:
+        area_m2 = ring_area_m2(work, origin_lat=pin_lat, origin_lon=pin_lon)
+        area_sqft = m2_to_sqft(area_m2)
+
+    clat, clon = centroid(work)
+    e, n = to_xy(clat, clon, origin_lat=pin_lat, origin_lon=pin_lon)
+    w_ft, h_ft = bbox_ft(work, origin_lat=pin_lat, origin_lon=pin_lon)
+    edges = edge_lengths_ft(work, origin_lat=pin_lat, origin_lon=pin_lon)
+
+    out: dict[str, Any] = {
+        "id": f"vertices:{feature}",
+        "source": f"operator_vertices:{source_path}",
+        "kind": "polyline" if feature in {"fence", "driveway"} and not closed else "polygon",
+        "vertex_count": len(work),
+        "closed_ring": closed or (want_area and len(work) >= 3),
+        "length_m": round(length_m, 3),
+        "length_ft": round(length_ft, 2),
+        "footprint_m2": round(area_m2, 2) if area_m2 else None,
+        "footprint_sqft": round(area_sqft, 1) if area_sqft else None,
+        "dist_m_from_pin": round(math.hypot(e, n), 2),
+        "offset_E_m": round(e, 2),
+        "offset_N_m": round(n, 2),
+        "bbox_ft": {"width": round(w_ft, 1), "height": round(h_ft, 1)},
+        "edge_lengths_ft": [round(x, 1) for x in edges],
+        "polygon_sha256": polygon_sha256(work),
+        "combined_uncertainty_pct": unc,
+        "osm_url": None,
+    }
+    if area_sqft:
+        out["gla_band_sqft"] = gla_band_from_footprint(area_sqft)
+    return out
+
+
+def _query(
+    address: str | None,
+    lat: float | None,
+    lon: float | None,
+    feature: str,
+    radius_m: float,
+    calibrators: Sequence[str],
+    vertices_path: str | Path | None,
+) -> dict[str, Any]:
+    return {
+        "address": address,
+        "lat": lat,
+        "lon": lon,
+        "feature": feature,
+        "radius_m": radius_m,
+        "calibrators": list(calibrators),
+        "vertices_path": str(vertices_path) if vertices_path else None,
+    }
+
+
+def _resolve_geocode(
+    *,
+    address: str | None,
+    lat: float | None,
+    lon: float | None,
+) -> dict[str, Any]:
+    if lat is not None and lon is not None:
+        return {
+            "lat": float(lat),
+            "lon": float(lon),
+            "display_name": address or f"{lat},{lon}",
+            "source": "operator_coords",
+        }
+    if address:
+        return geocode_address(address)
+    raise GeocodeError("provide --address or --lat/--lon")
+
+
+def _score_buildings(
+    buildings: list[dict[str, Any]],
+    pin_lat: float,
+    pin_lon: float,
+) -> list[dict[str, Any]]:
+    scored: list[dict[str, Any]] = []
+    for b in buildings:
+        coords = b["coords"]
+        m2 = ring_area_m2(coords, origin_lat=pin_lat, origin_lon=pin_lon)
+        sqft = m2_to_sqft(m2)
+        clat, clon = centroid(coords)
+        e, n = to_xy(clat, clon, origin_lat=pin_lat, origin_lon=pin_lon)
+        dist = math.hypot(e, n)
+        w_ft, h_ft = bbox_ft(coords, origin_lat=pin_lat, origin_lon=pin_lon)
+        edges = edge_lengths_ft(coords, origin_lat=pin_lat, origin_lon=pin_lon)
+        osm_id = b.get("osm_id")
+        scored.append(
+            {
+                "id": b["id"],
+                "source": b.get("source") or "openstreetmap",
+                "footprint_m2": round(m2, 2),
+                "footprint_sqft": round(sqft, 1),
+                "dist_m_from_pin": round(dist, 2),
+                "offset_E_m": round(e, 2),
+                "offset_N_m": round(n, 2),
+                "bbox_ft": {"width": round(w_ft, 1), "height": round(h_ft, 1)},
+                "edge_lengths_ft": [round(x, 1) for x in edges],
+                "gla_band_sqft": gla_band_from_footprint(sqft),
+                "polygon_sha256": polygon_sha256(coords),
+                "osm_url": f"https://www.openstreetmap.org/way/{osm_id}" if osm_id else None,
+            }
+        )
+    scored.sort(key=lambda r: r["dist_m_from_pin"])
+    return scored

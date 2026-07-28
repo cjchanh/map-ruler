@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "measure-testify/receipt/v1",
+  "title": "measure-testify receipt",
+  "description": "A spatial measurement that testifies: scale chain → polygon/polyline → sealed receipt. Footprint is not GLA.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "generated_at_utc",
+    "query",
+    "geocode",
+    "scale_chain",
+    "candidates",
+    "primary",
+    "method",
+    "disclaimer"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "measure-testify/receipt/v1"
+    },
+    "status": {
+      "enum": ["CLEAN", "PARTIAL", "ABSTAIN", "ERROR"]
+    },
+    "generated_at_utc": { "type": "string", "format": "date-time" },
+    "query": {
+      "type": "object",
+      "required": ["feature"],
+      "properties": {
+        "address": { "type": ["string", "null"] },
+        "lat": { "type": ["number", "null"] },
+        "lon": { "type": ["number", "null"] },
+        "feature": {
+          "enum": ["roof", "fence", "driveway", "building", "parcel"]
+        },
+        "radius_m": { "type": "number", "minimum": 5, "maximum": 500 },
+        "calibrators": {
+          "type": "array",
+          "items": {
+            "enum": ["basemap", "car_sedan", "parking_stall", "dual_basemap"]
+          }
+        }
+      }
+    },
+    "geocode": {
+      "type": "object",
+      "properties": {
+        "lat": { "type": "number" },
+        "lon": { "type": "number" },
+        "display_name": { "type": "string" },
+        "source": { "type": "string" }
+      }
+    },
+    "scale_chain": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "meters_per_unit", "uncertainty_pct"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "meters_per_unit": { "type": "number" },
+          "uncertainty_pct": { "type": "number", "minimum": 0 },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "source", "footprint_sqft", "dist_m_from_pin"],
+        "properties": {
+          "id": { "type": "string" },
+          "source": { "type": "string" },
+          "footprint_sqft": { "type": "number" },
+          "footprint_m2": { "type": "number" },
+          "dist_m_from_pin": { "type": "number" },
+          "offset_E_m": { "type": "number" },
+          "offset_N_m": { "type": "number" },
+          "bbox_ft": {
+            "type": "object",
+            "properties": {
+              "width": { "type": "number" },
+              "height": { "type": "number" }
+            }
+          },
+          "edge_lengths_ft": {
+            "type": "array",
+            "items": { "type": "number" }
+          },
+          "gla_band_sqft": {
+            "type": "object",
+            "properties": {
+              "low": { "type": "number" },
+              "high": { "type": "number" },
+              "factor_low": { "type": "number" },
+              "factor_high": { "type": "number" }
+            }
+          },
+          "polygon_sha256": { "type": "string" },
+          "osm_url": { "type": "string" }
+        }
+      }
+    },
+    "primary": {
+      "type": ["object", "null"],
+      "description": "Closest footprint to pin when feature is roof/building; null on ABSTAIN"
+    },
+    "method": { "type": "string" },
+    "disclaimer": { "type": "string" },
+    "maps": { "type": "object" },
+    "error": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "receipt_sha256": {
+      "type": "string",
+      "description": "SHA-256 of canonical JSON (excluding this field)"
+    }
+  }
+}
