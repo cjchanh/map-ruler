@@ -50,4 +50,4 @@ bash ~/Workspace/active/map-ruler/scripts/install-pipx.sh
 
 - County GIS parcel rings
 - Auto car detection (optional; not default)
-- Public GitHub: `cjchanh/map-ruler` (when pushed)
+- Public GitHub: https://github.com/cjchanh/map-ruler
