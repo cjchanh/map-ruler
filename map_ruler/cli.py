@@ -65,6 +65,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Omit coords_latlon from receipt (smaller JSON)",
     )
+    m.add_argument(
+        "--parcel-layer",
+        type=str,
+        default=None,
+        help="Parcel preset (toronto|ontario_demo) or full ArcGIS .../query URL",
+    )
     m.add_argument("--out", type=Path, default=None, help="Write receipt JSON")
     m.add_argument("--pretty", action="store_true")
     m.add_argument("--max-candidates", type=int, default=12)
@@ -154,6 +160,7 @@ def _cmd_measure(args: argparse.Namespace) -> int:
         scale_segment=args.scale_segment,
         scale_length_ft=args.scale_length_ft,
         include_rings=not args.no_rings,
+        parcel_layer=getattr(args, "parcel_layer", None),
     )
     text = json.dumps(receipt, indent=2 if args.pretty else None, sort_keys=args.pretty)
     if args.out:

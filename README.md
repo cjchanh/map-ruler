@@ -127,11 +127,11 @@ Invoke when the operator wants roof/fence/driveway measure with a receipt.
 # True Microsoft/OSM footprints around address
 python3 -m map_ruler plot \
   --address "Ontario Legislative Building, 111 Wellesley Street West, Toronto, ON, Canada" \
-  --out receipts/ontario-demo-roof.png \
+  --out receipts/ontario-demo-roofs.png \
   --receipt-out receipts/ontario-demo-roof.json
 
 # Satellite underlay
-python3 -m map_ruler plot --receipt receipts/ontario-demo-roof.json \
+python3 -m map_ruler plot --receipt receipts/ontario-demo-v04.json \
   --basemap --basemap-source esri --out receipts/ontario-demo-sat.png
 
 # Fence path on top of context (vertices required for path)

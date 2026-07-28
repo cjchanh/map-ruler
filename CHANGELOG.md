@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- Parcel measure via ArcGIS presets (`toronto` / `ontario_demo`) or custom `.../query` URL
+- Public dogfood scrubbed to Ontario Legislative Building (Queen's Park) — no private residence in repo
+- `examples/DEMO_ADDRESS.md` policy for public-safe demos
+
 ## 0.5.0
 
 - Multi-mirror Overpass with exponential backoff, bbox query, radius filter

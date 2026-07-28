@@ -1,0 +1,17 @@
+{
+  "type": "Feature",
+  "properties": {
+    "note": "SAMPLE public demo path near Ontario Legislative Building (Queen's Park, Toronto). Not a private residence.",
+    "feature": "fence",
+    "demo": true
+  },
+  "geometry": {
+    "type": "LineString",
+    "coordinates": [
+      [-79.39120, 43.66240],
+      [-79.39080, 43.66240],
+      [-79.39080, 43.66270],
+      [-79.39120, 43.66270]
+    ]
+  }
+}

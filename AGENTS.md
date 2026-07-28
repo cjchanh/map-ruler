@@ -36,8 +36,9 @@ python3 -m unittest discover -s tests -v
 ## Blast radius
 
 - Reversible local: edit, test, commit in this repo.
-- Network: Nominatim + Overpass on measure/plot.
-- Irreversible: `git push` / public GitHub — needs operator commit line.
+- Network: Nominatim + Overpass + optional Toronto GIS parcels + basemap tiles.
+- Irreversible: `git push` / public GitHub — **operator must explicitly request push**; default is local only.
+- **Never commit private residential addresses or home satellite dogfood** — public demo is Ontario civic site only (`examples/DEMO_ADDRESS.md`).
 
 ## Install for agents
 

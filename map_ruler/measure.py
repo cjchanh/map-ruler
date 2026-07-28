@@ -52,6 +52,7 @@ def measure(
     scale_segment: str | None = None,
     scale_length_ft: float | None = None,
     include_rings: bool = True,
+    parcel_layer: str | None = None,
 ) -> dict[str, Any]:
     """Run measure-testify. Returns sealed receipt dict."""
     feature = (feature or "roof").lower().strip()
@@ -60,7 +61,7 @@ def measure(
             status="ERROR",
             query=_query(
                 address, lat, lon, feature, radius_m, calibrators, vertices_path,
-                scale_segment, scale_length_ft,
+                scale_segment, scale_length_ft, parcel_layer,
             ),
             geocode=None,
             scale_chain=[],
@@ -72,7 +73,7 @@ def measure(
 
     query = _query(
         address, lat, lon, feature, radius_m, calibrators, vertices_path,
-        scale_segment, scale_length_ft,
+        scale_segment, scale_length_ft, parcel_layer,
     )
 
     try:
@@ -136,6 +137,103 @@ def measure(
 
     scale_dicts = [c.to_dict() for c in chain]
     unc = combined_uncertainty_pct(chain)
+
+    # Parcel-only (or parcel primary) path
+    if feature == "parcel" or parcel_layer:
+        parcel_block = None
+        parcel_err = None
+        layer_key = parcel_layer or "ontario_demo"
+        try:
+            from map_ruler.parcel import ParcelError, query_parcel_at_point, resolve_layer_url
+
+            layer_url, layer_note = resolve_layer_url(layer_key)
+            parcel_block = query_parcel_at_point(
+                pin_lat, pin_lon, layer_query_url=layer_url, distance_m=max(15.0, radius_m / 2)
+            )
+            if parcel_block is not None:
+                parcel_block["layer_note"] = layer_note
+                parcel_block["id"] = "parcel:primary"
+                parcel_block["kind"] = "parcel"
+                parcel_block["combined_uncertainty_pct"] = unc
+                parcel_block["linear_scale_factor"] = round(linear_factor, 6)
+                # apply linear scale to area if present
+                if parcel_block.get("footprint_m2") is not None and linear_factor != 1.0:
+                    from map_ruler.scale import apply_linear_scale
+                    from map_ruler.geometry import m2_to_sqft
+
+                    _, am = apply_linear_scale(
+                        length_m=None,
+                        area_m2=parcel_block["footprint_m2"],
+                        factor=linear_factor,
+                    )
+                    parcel_block["footprint_m2"] = round(am or 0, 2)
+                    parcel_block["footprint_sqft"] = round(m2_to_sqft(am or 0), 1)
+        except Exception as e:  # noqa: BLE001
+            parcel_err = str(e)
+
+        if feature == "parcel":
+            if parcel_block is None:
+                return base_receipt(
+                    status="ABSTAIN" if not parcel_err else "ERROR",
+                    query=query,
+                    geocode=geocode,
+                    scale_chain=scale_dicts,
+                    candidates=[],
+                    primary=None,
+                    method=METHOD + f" parcel_layer={layer_key}.",
+                    error={
+                        "kind": "PARCEL",
+                        "message": parcel_err
+                        or f"no parcel feature at pin for layer {layer_key}",
+                    },
+                )
+            # optional building context
+            context: list[dict[str, Any]] = []
+            if include_building_context:
+                try:
+                    buildings = fetch_buildings_overpass(pin_lat, pin_lon, radius_m=radius_m)
+                    context = _score_buildings(
+                        buildings,
+                        pin_lat,
+                        pin_lon,
+                        linear_factor=linear_factor,
+                        include_rings=include_rings,
+                    )[:max_candidates]
+                except FootprintError:
+                    context = []
+            return base_receipt(
+                status="CLEAN",
+                query=query,
+                geocode=geocode,
+                scale_chain=scale_dicts,
+                candidates=context,
+                primary=parcel_block,
+                method=METHOD
+                + f" parcel_layer={layer_key} linear_scale_factor={linear_factor:.4f} "
+                f"combined_uncertainty_pct={unc}.",
+            )
+        # non-parcel feature with optional parcel sidecar — stash on query for receipt consumers
+        if parcel_block is not None:
+            query = dict(query)
+            query["parcel_sidecar"] = {
+                "footprint_sqft": parcel_block.get("footprint_sqft"),
+                "footprint_m2": parcel_block.get("footprint_m2"),
+                "attributes": {
+                    k: parcel_block.get("attributes", {}).get(k)
+                    for k in (
+                        "PARCELID",
+                        "ADDRESS_NUMBER",
+                        "LINEAR_NAME_FULL",
+                        "FEATURE_TYPE",
+                        "PLAN_NAME",
+                    )
+                    if parcel_block.get("attributes")
+                },
+                "source_url": parcel_block.get("source_url"),
+            }
+        elif parcel_err:
+            query = dict(query)
+            query["parcel_sidecar_error"] = parcel_err
 
     # Operator/agent vertex path
     if vertices_path is not None:
@@ -349,6 +447,7 @@ def _query(
     vertices_path: str | Path | None,
     scale_segment: str | None = None,
     scale_length_ft: float | None = None,
+    parcel_layer: str | None = None,
 ) -> dict[str, Any]:
     return {
         "address": address,
@@ -360,6 +459,7 @@ def _query(
         "vertices_path": str(vertices_path) if vertices_path else None,
         "scale_segment": scale_segment,
         "scale_length_ft": scale_length_ft,
+        "parcel_layer": parcel_layer,
     }
 
 
