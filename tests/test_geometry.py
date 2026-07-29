@@ -17,7 +17,7 @@ from map_ruler.scale import build_scale_chain, combined_uncertainty_pct
 
 class TestGeometry(unittest.TestCase):
     def test_100m_square_near_colorado_springs(self) -> None:
-        # ~100m square at ~38.86°N
+        # ~100m square at ~43.66°N
         lat0, lon0 = 43.6626213, -79.3910161
         # 100m north ≈ 100/111320 deg
         dlat = 100.0 / 111320.0

@@ -16,9 +16,9 @@ from map_ruler.scale import (
 
 class TestScaleSegment(unittest.TestCase):
     def test_parse(self) -> None:
-        p1, p2 = parse_segment("43.66,-79.39,38.85,-104.869")
-        self.assertAlmostEqual(p1[0], 38.85)
-        self.assertAlmostEqual(p2[1], -104.869)
+        p1, p2 = parse_segment("43.66,-79.39,43.66,-79.389")
+        self.assertAlmostEqual(p1[0], 43.66)
+        self.assertAlmostEqual(p2[1], -79.389)
 
     def test_parse_bad(self) -> None:
         with self.assertRaises(ValueError):

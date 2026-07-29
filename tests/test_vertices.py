@@ -76,7 +76,7 @@ class TestMeasureVerticesOffline(unittest.TestCase):
         self.assertIn("receipt_sha256", rec)
 
     def test_closed_courtyard_area(self) -> None:
-        lat0, lon0 = 38.85, -104.87
+        lat0, lon0 = 43.66, -79.39
         dlat = 10.0 / 111320.0
         dlon = 10.0 / (111320.0 * math.cos(math.radians(lat0)))
         ring = [

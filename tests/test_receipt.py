@@ -23,7 +23,7 @@ class TestReceipt(unittest.TestCase):
         rec = base_receipt(
             status="CLEAN",
             query={"feature": "roof", "address": "x", "lat": None, "lon": None, "radius_m": 60, "calibrators": ["basemap"]},
-            geocode={"lat": 38.85, "lon": -104.87, "display_name": "t", "source": "t"},
+            geocode={"lat": 43.66, "lon": -79.39, "display_name": "t", "source": "t"},
             scale_chain=[{"id": "basemap_local_en", "kind": "basemap", "meters_per_unit": 1.0, "uncertainty_pct": 2.0, "notes": "n"}],
             candidates=[],
             primary=None,
