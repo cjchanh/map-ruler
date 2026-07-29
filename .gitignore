@@ -5,3 +5,6 @@ dist/
 build/
 *.egg-info/
 .DS_Store
+
+# operator-local privacy markers (never commit)
+tests/.private_markers.json
