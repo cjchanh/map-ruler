@@ -16,7 +16,7 @@ from map_ruler.scale import build_scale_chain, combined_uncertainty_pct
 
 
 class TestGeometry(unittest.TestCase):
-    def test_100m_square_near_colorado_springs(self) -> None:
+    def test_100m_square_near_toronto(self) -> None:
         # ~100m square at ~43.66°N
         lat0, lon0 = 43.6626213, -79.3910161
         # 100m north ≈ 100/111320 deg
@@ -34,8 +34,8 @@ class TestGeometry(unittest.TestCase):
         self.assertAlmostEqual(sqft, 107639.0, delta=600.0)
 
     def test_polygon_hash_stable(self) -> None:
-        a = [(38.1, -104.1), (38.1, -104.0), (38.2, -104.0)]
-        b = [(38.1, -104.1), (38.1, -104.0), (38.2, -104.0)]
+        a = [(43.1, -79.1), (43.1, -79.0), (43.2, -79.0)]
+        b = [(43.1, -79.1), (43.1, -79.0), (43.2, -79.0)]
         self.assertEqual(polygon_sha256(a), polygon_sha256(b))
 
     def test_gla_band(self) -> None:
@@ -44,7 +44,7 @@ class TestGeometry(unittest.TestCase):
         self.assertEqual(band["high"], round(1656 * 0.95, 1))
 
     def test_bbox(self) -> None:
-        lat0, lon0 = 38.0, -104.0
+        lat0, lon0 = 43.0, -79.0
         dlat = 10.0 / 111320.0
         dlon = 20.0 / (111320.0 * math.cos(math.radians(lat0)))
         ring = [(lat0, lon0), (lat0, lon0 + dlon), (lat0 + dlat, lon0 + dlon), (lat0 + dlat, lon0)]
@@ -55,13 +55,13 @@ class TestGeometry(unittest.TestCase):
 
 class TestScale(unittest.TestCase):
     def test_basemap_always_present(self) -> None:
-        chain = build_scale_chain(["car_sedan"], lat=38.85)
+        chain = build_scale_chain(["car_sedan"], lat=43.66)
         kinds = [c.kind for c in chain]
         self.assertEqual(kinds[0], "basemap")
         self.assertIn("car_sedan", kinds)
 
     def test_combined_uncertainty_is_max(self) -> None:
-        chain = build_scale_chain(["basemap", "car_sedan"], lat=38.85)
+        chain = build_scale_chain(["basemap", "car_sedan"], lat=43.66)
         self.assertEqual(
             combined_uncertainty_pct(chain),
             max(c.uncertainty_pct for c in chain),
@@ -69,7 +69,7 @@ class TestScale(unittest.TestCase):
 
     def test_unknown_calibrator(self) -> None:
         with self.assertRaises(ValueError):
-            build_scale_chain(["basemap", "unicorn"], lat=38.0)
+            build_scale_chain(["basemap", "unicorn"], lat=43.0)
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ class TestTileMath(unittest.TestCase):
         self.assertLess(abs(lon - lon2), 0.01)
 
     def test_zoom_reasonable(self) -> None:
-        z = choose_zoom(lat=38.85, radius_m=60)
+        z = choose_zoom(lat=43.66, radius_m=60)
         self.assertGreaterEqual(z, 15)
         self.assertLessEqual(z, 20)
 

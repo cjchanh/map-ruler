@@ -15,22 +15,22 @@ from map_ruler.vertices import VerticesError, load_vertices, parse_vertices
 
 class TestVerticesParse(unittest.TestCase):
     def test_latlon_list(self) -> None:
-        pts = parse_vertices([[38.1, -104.1], [38.1, -104.0], [38.2, -104.0]])
+        pts = parse_vertices([[43.1, -79.1], [43.1, -79.0], [43.2, -79.0]])
         self.assertEqual(len(pts), 3)
-        self.assertAlmostEqual(pts[0][0], 38.1)
+        self.assertAlmostEqual(pts[0][0], 43.1)
 
     def test_geojson_linestring_lonlat(self) -> None:
         raw = {
             "type": "LineString",
-            "coordinates": [[-104.1, 38.1], [-104.0, 38.1], [-104.0, 38.2]],
+            "coordinates": [[-79.1, 43.1], [-79.0, 43.1], [-79.0, 43.2]],
         }
         pts = parse_vertices(raw)
-        self.assertAlmostEqual(pts[0][0], 38.1)
-        self.assertAlmostEqual(pts[0][1], -104.1)
+        self.assertAlmostEqual(pts[0][0], 43.1)
+        self.assertAlmostEqual(pts[0][1], -79.1)
 
     def test_too_few(self) -> None:
         with self.assertRaises(VerticesError):
-            parse_vertices([[38.0, -104.0]])
+            parse_vertices([[43.0, -79.0]])
 
 
 class TestPathLength(unittest.TestCase):
