@@ -40,7 +40,7 @@ Doctrine: *It doesn’t answer. It testifies.*
 ## Install
 
 ```bash
-cd ~/Workspace/active/map-ruler
+git clone https://github.com/cjchanh/map-ruler.git && cd map-ruler
 
 # pipx (recommended)
 bash scripts/install-pipx.sh
@@ -118,8 +118,7 @@ Primary fields:
 
 ## Agent skill
 
-Grok: `~/.grok/skills/map-ruler/SKILL.md`  
-Invoke when the operator wants roof/fence/driveway measure with a receipt.
+An operator-side agent skill (author tooling, kept outside this repo) wraps map-ruler for agent invocation when the operator wants a roof/fence/driveway measure with a receipt. The CLI documented above is the complete public interface — nothing in this repo depends on the skill wrapper.
 
 ## Plot
 
@@ -146,7 +145,7 @@ Plot needs `matplotlib` (+ `Pillow` for `--basemap`).
 ## Tests
 
 ```bash
-cd ~/Workspace/active/map-ruler
+git clone https://github.com/cjchanh/map-ruler.git && cd map-ruler
 python3 -m unittest discover -s tests -v
 ```
 
