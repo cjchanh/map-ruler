@@ -20,5 +20,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install package with plot extras
+        run: python3 -m pip install -e '.[dev]'
       - name: Run unit and privacy tests
         run: python3 -m unittest discover -s tests -v
