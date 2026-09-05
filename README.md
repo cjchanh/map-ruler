@@ -57,6 +57,10 @@ PYTHONPATH=. python3 -m map_ruler measure --address "..." --pretty
 **Plot + basemap:** `matplotlib` + `Pillow` (via `[plot]` extra).  
 Network: Nominatim + Overpass (+ tile hosts when `--basemap`).
 
+**Geocoding / Nominatim:** geocoding uses OSM Nominatim with an identifying
+User-Agent and is throttled to 1 request/second per the Nominatim usage policy.
+Heavy or automated use must use a self-hosted instance.
+
 ## CLI
 
 ```bash

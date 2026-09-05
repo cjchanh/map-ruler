@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -10,10 +11,25 @@ from typing import Any
 
 USER_AGENT = "map-ruler/0.1 (CDS measure-testify; local operator tool)"
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
+NOMINATIM_MIN_INTERVAL_S = 1.0
+
+_last_request_monotonic: float | None = None
 
 
 class GeocodeError(RuntimeError):
     pass
+
+
+def _respect_rate_limit() -> None:
+    """Hold to at most one Nominatim request per second (usage policy)."""
+    global _last_request_monotonic
+    now = time.monotonic()
+    if _last_request_monotonic is not None:
+        remaining = NOMINATIM_MIN_INTERVAL_S - (now - _last_request_monotonic)
+        if remaining > 0:
+            time.sleep(remaining)
+            now += remaining
+    _last_request_monotonic = now
 
 
 def geocode_address(address: str, *, timeout: float = 25.0) -> dict[str, Any]:
@@ -33,6 +49,7 @@ def geocode_address(address: str, *, timeout: float = 25.0) -> dict[str, Any]:
         headers={"User-Agent": USER_AGENT},
     )
     try:
+        _respect_rate_limit()
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:

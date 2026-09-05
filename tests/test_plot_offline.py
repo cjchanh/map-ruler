@@ -7,6 +7,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("matplotlib")
+
 from map_ruler.plot import plot_from_receipt
 
 
