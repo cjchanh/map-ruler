@@ -28,7 +28,10 @@ def _respect_rate_limit() -> None:
         remaining = NOMINATIM_MIN_INTERVAL_S - (now - _last_request_monotonic)
         if remaining > 0:
             time.sleep(remaining)
-            now += remaining
+            # Re-read the clock: sleep() may overshoot, and stamping the
+            # planned wake time instead of the real one lets the next call
+            # start less than one second after this request actually went out.
+            now = time.monotonic()
     _last_request_monotonic = now
 
 

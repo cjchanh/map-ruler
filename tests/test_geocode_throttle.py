@@ -53,10 +53,13 @@ class TestNominatimThrottle(unittest.TestCase):
             geocode.geocode_address("1 Test St")
 
     def test_second_call_within_interval_sleeps_remainder(self) -> None:
-        # First call at t=100.0 records; second at t=100.2 sleeps 0.8 s.
-        self._geocode_twice([100.0, 100.2])
+        # First call at t=100.0 records; second at t=100.2 sleeps 0.8 s and
+        # then re-reads the clock (101.05: an overshoot) so the real send time,
+        # not the planned wake time, becomes the new reference.
+        self._geocode_twice([100.0, 100.2, 101.05])
         self.assertEqual(len(self.sleeps), 1)
         self.assertAlmostEqual(self.sleeps[0], 0.8, places=6)
+        self.assertAlmostEqual(geocode._last_request_monotonic, 101.05, places=6)
 
     def test_call_after_interval_does_not_sleep(self) -> None:
         self._geocode_twice([100.0, 105.0])
