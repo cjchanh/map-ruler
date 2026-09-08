@@ -2,20 +2,21 @@
 
 from __future__ import annotations
 
-import json
 import tempfile
 import unittest
 from pathlib import Path
 
-import pytest
+try:
+    import matplotlib  # noqa: F401
+except ImportError:
+    matplotlib = None
 
-pytest.importorskip("matplotlib")
 
-from map_ruler.plot import plot_from_receipt
-
-
+@unittest.skipUnless(matplotlib is not None, "matplotlib extra not installed")
 class TestPlotOffline(unittest.TestCase):
     def test_plot_receipt_png(self) -> None:
+        from map_ruler.plot import plot_from_receipt
+
         receipt = {
             "status": "CLEAN",
             "geocode": {"lat": 43.6626213, "lon": -79.3910161, "display_name": "t"},

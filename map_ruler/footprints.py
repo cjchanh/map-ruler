@@ -5,12 +5,10 @@ from __future__ import annotations
 import json
 import math
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from typing import Any
 
-from map_ruler.geocode import USER_AGENT
+from map_ruler.geocode import open_url
 
 # Ordered mirrors — rotate on failure / timeout.
 OVERPASS_ENDPOINTS = (
@@ -27,8 +25,7 @@ class FootprintError(RuntimeError):
 
 
 def _http_json(url: str, *, data: bytes | None = None, timeout: float = 60.0) -> Any:
-    req = urllib.request.Request(url, data=data, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with open_url(url, data=data, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 

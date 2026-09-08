@@ -1,19 +1,18 @@
 # map-ruler
 
-**Open spatial measurements that testify.**
+Measure roofs, fences, and driveways from OpenStreetMap footprints. Writes a sealed JSON record with a documented scale chain.
 
-Scale chain → polygon → sealed receipt.  
-Not a cadastral survey. Roof print ≠ interior GLA.
+Not a cadastral survey. Roof print is not interior living area.
 
 ```
 map-ruler measure --address "Ontario Legislative Building, 111 Wellesley Street West, Toronto, ON, Canada" \
   --feature roof --calibrators basemap,car_sedan --pretty
 
-# Fence / driveway with operator vertices (GeoJSON or [[lat,lon],...])
+# Fence / driveway with user-supplied vertices (GeoJSON or [[lat,lon],...])
 map-ruler measure --address "..." --feature fence \
   --vertices examples/ontario-demo-fence.json --pretty
 
-# PNG overlay (rings from receipt — no second fetch when coords_latlon present)
+# PNG overlay (rings from the JSON record — no second fetch when coords_latlon present)
 map-ruler plot --address "Ontario Legislative Building, 111 Wellesley Street West, Toronto, ON, Canada" \
   --feature roof --out receipts/ontario-demo.png --receipt-out receipts/ontario-demo.json
 
@@ -23,19 +22,9 @@ map-ruler measure --address "..." --feature roof \
   --scale-length-ft 15.5 --pretty
 ```
 
-## Why
+**Refuses:** does not invent living area, does not claim survey-grade accuracy, and returns PARTIAL / ABSTAIN / ERROR instead of guessing.
 
-Map UIs draw areas. They rarely **defend scale** or leave a **receipt**.
-
-`map-ruler` is the CDS metrology brick:
-
-1. **Geocode** (Nominatim) or accept operator lat/lon  
-2. **Pull building footprints** (OSM Overpass; often Microsoft Building Footprints)  
-3. **Scale chain** — basemap CRS + optional car/parking/dual-basemap protocol  
-4. **Shoelace area** in local meters → sq ft  
-5. **Seal** `measure-testify/receipt/v1` with SHA-256  
-
-Doctrine: *It doesn’t answer. It testifies.*
+Background and method: [docs/WHY.md](docs/WHY.md).
 
 ## Install
 
@@ -86,7 +75,7 @@ python3 -m map_ruler measure --address "..." --feature fence
 | `roof` / `building` | Closest OSM footprint to pin; GLA band heuristic |
 | `fence` / `driveway` | Without `--vertices`: PARTIAL context. With `--vertices`: CLEAN length (+ area if closed) |
 | `parcel`  | Building context (parcel polygons later)         |
-| any + `--vertices` | Operator/agent path wins; seals length/area from file |
+| any + `--vertices` | User-supplied path wins; seals length/area from file |
 
 ### Vertices file shapes
 
@@ -105,7 +94,7 @@ python3 -m map_ruler measure --address "..." --feature fence
 
 Combined uncertainty = **max** of chain (fail-closed, not optimistic RSS).
 
-## Receipt schema
+## Record schema
 
 See `schema/measure-testify-receipt-v1.json`.
 
@@ -122,7 +111,7 @@ Primary fields:
 
 ## Agent skill
 
-An operator-side agent skill (author tooling, kept outside this repo) wraps map-ruler for agent invocation when the operator wants a roof/fence/driveway measure with a receipt. The CLI documented above is the complete public interface — nothing in this repo depends on the skill wrapper.
+An optional agent-skill wrapper (author tooling, kept outside this repo) can call map-ruler. The CLI documented above is the complete public interface — nothing in this repo depends on the skill wrapper.
 
 ## Plot
 
@@ -171,5 +160,5 @@ MIT — see `LICENSE`.
 ## Disclaimer
 
 Not a survey. Not legal property lines. Not assessor GLA.  
-Use for operator evidence, agent context, and open research.  
+Use for local evidence, agent context, and open research.  
 Field tape/laser upgrades authority — record it in the scale chain later.

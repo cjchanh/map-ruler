@@ -8,3 +8,4 @@ build/
 
 # operator-local privacy markers (never commit)
 tests/.private_markers.json
+.lineage-state/

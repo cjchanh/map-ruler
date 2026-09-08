@@ -10,6 +10,7 @@ import json
 import unittest
 from unittest import mock
 
+import map_ruler.footprints as footprints
 import map_ruler.geocode as geocode
 
 
@@ -64,6 +65,47 @@ class TestNominatimThrottle(unittest.TestCase):
     def test_call_after_interval_does_not_sleep(self) -> None:
         self._geocode_twice([100.0, 105.0])
         self.assertEqual(self.sleeps, [])
+
+    def test_geocode_sends_identifying_user_agent(self) -> None:
+        seen: list[object] = []
+
+        def capture(req: object, timeout: float | None = None) -> _FakeResponse:
+            seen.append(req)
+            return _FakeResponse(self.payload)
+
+        with mock.patch.object(
+            geocode.urllib.request, "urlopen", side_effect=capture
+        ), mock.patch.object(geocode.time, "monotonic", return_value=100.0), mock.patch.object(
+            geocode.time, "sleep"
+        ):
+            geocode.geocode_address("1 Test St")
+        self.assertEqual(len(seen), 1)
+        ua = seen[0].get_header("User-agent")  # type: ignore[attr-defined]
+        self.assertIsNotNone(ua)
+        self.assertIn("map-ruler", ua)
+        self.assertIn("https://github.com/cjchanh/map-ruler", ua)
+
+    def test_overpass_client_sends_user_agent_and_throttles(self) -> None:
+        seen: list[object] = []
+
+        def capture(req: object, timeout: float | None = None) -> _FakeResponse:
+            seen.append(req)
+            return _FakeResponse({"elements": []})
+
+        with mock.patch.object(
+            geocode.urllib.request, "urlopen", side_effect=capture
+        ), mock.patch.object(
+            geocode.time, "monotonic", side_effect=[100.0, 100.2, 101.05]
+        ), mock.patch.object(geocode.time, "sleep", side_effect=self.sleeps.append):
+            footprints._http_json("https://overpass-api.de/api/interpreter")
+            footprints._http_json("https://overpass-api.de/api/interpreter")
+        self.assertEqual(len(seen), 2)
+        ua = seen[0].get_header("User-agent")  # type: ignore[attr-defined]
+        self.assertIsNotNone(ua)
+        self.assertIn("map-ruler", ua)
+        self.assertIn("https://github.com/cjchanh/map-ruler", ua)
+        self.assertEqual(len(self.sleeps), 1)
+        self.assertAlmostEqual(self.sleeps[0], 0.8, places=6)
 
 
 if __name__ == "__main__":

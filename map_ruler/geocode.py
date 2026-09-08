@@ -9,7 +9,8 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-USER_AGENT = "map-ruler/0.1 (CDS measure-testify; local operator tool)"
+CONTACT_URL = "https://github.com/cjchanh/map-ruler"
+USER_AGENT = f"map-ruler/0.6.0 (+{CONTACT_URL})"
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
 NOMINATIM_MIN_INTERVAL_S = 1.0
 
@@ -21,7 +22,7 @@ class GeocodeError(RuntimeError):
 
 
 def _respect_rate_limit() -> None:
-    """Hold to at most one Nominatim request per second (usage policy)."""
+    """Hold to at most one outbound request per second (Nominatim usage policy)."""
     global _last_request_monotonic
     now = time.monotonic()
     if _last_request_monotonic is not None:
@@ -33,6 +34,22 @@ def _respect_rate_limit() -> None:
             # start less than one second after this request actually went out.
             now = time.monotonic()
     _last_request_monotonic = now
+
+
+def open_url(
+    url: str,
+    *,
+    data: bytes | None = None,
+    timeout: float = 25.0,
+) -> Any:
+    """Open a URL with the project User-Agent, throttled to 1 request/second."""
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"User-Agent": USER_AGENT},
+    )
+    _respect_rate_limit()
+    return urllib.request.urlopen(req, timeout=timeout)
 
 
 def geocode_address(address: str, *, timeout: float = 25.0) -> dict[str, Any]:
@@ -47,13 +64,8 @@ def geocode_address(address: str, *, timeout: float = 25.0) -> dict[str, Any]:
             "addressdetails": 1,
         }
     )
-    req = urllib.request.Request(
-        f"{NOMINATIM}?{params}",
-        headers={"User-Agent": USER_AGENT},
-    )
     try:
-        _respect_rate_limit()
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with open_url(f"{NOMINATIM}?{params}", timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         raise GeocodeError(f"Nominatim HTTP {e.code}") from e
