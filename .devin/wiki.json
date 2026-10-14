@@ -1,0 +1,63 @@
+{
+  "repo_notes": [
+    {
+      "content": "map-ruler is an open spatial measure-testify tool (CDS): it measures roofs, fences, and driveways from OpenStreetMap building footprints and writes a sealed JSON record with a documented scale chain. Doctrine: geocode → footprints → scale chain → polygon → sealed receipt. Core invariants from AGENTS.md: (1) fail-closed — ERROR/ABSTAIN/PARTIAL/CLEAN are first-class verdicts, never invent GLA; (2) a scale chain is always present (basemap minimum; ground_segment when a two-point calibration is given); (3) footprint rings are embedded in the receipt as coords_latlon so plotting never re-fetches; (4) combined uncertainty is the max of the chain, not optimistic RSS; (5) never commit private residential addresses or home-satellite dogfood — public demos use the Ontario civic site only (examples/DEMO_ADDRESS.md). It is not a cadastral survey: roof print is not interior living area.",
+      "author": "Devin"
+    },
+    {
+      "content": "Layout (44 files): map_ruler/ is the whole library + CLI — cli.py and __main__.py (measure/plot entrypoints), measure.py (the pipeline), geocode.py (Nominatim, 1 req/s throttled, identifying User-Agent), footprints.py (OSM Overpass, often Microsoft Building Footprints), geometry.py (shoelace area in local meters → sq ft, gla_band heuristic, centroid, edge_lengths_ft), scale.py (calibrator chain: CAR_SEDAN_LENGTH_M, PARKING_STALL_LENGTH_M), vertices.py (user-supplied GeoJSON/array shapes), tiles.py (basemap tile math), parcel.py (parcel context), plot.py (PNG overlay, needs [plot] extra: matplotlib+Pillow), receipt.py (seal + disclaimer text). schema/measure-testify-receipt-v1.json is the receipt contract. tests/ has 9 unittest modules incl. test_privacy_regression.py. receipts/ holds committed dogfood outputs for the Ontario demo. examples/ has sample vertices. docs/WHY.md explains the method. scripts/install-pipx.sh installs via pipx. Zero required deps for core measure; network only for Nominatim/Overpass/tiles.",
+      "author": "Devin"
+    },
+    {
+      "content": "Vocabulary: 'measure-testify' = measure and produce a checkable record; 'scale chain' = the stacked calibrators defending an area claim (basemap CRS minimum, then car_sedan / parking_stall / dual_basemap / ground_segment protocols); 'verdict' = CLEAN / PARTIAL / ABSTAIN / ERROR; 'GLA band' = the heuristic interior-area disclaimer derived from footprint area; 'seal' = SHA-256-signed measure-testify/receipt/v1. First-class sources: README.md (CLI + features + calibrators tables), AGENTS.md (invariants + blast radius — push to public GitHub requires an explicit operator request), docs/WHY.md (method), schema/measure-testify-receipt-v1.json.",
+      "author": "Devin"
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "What map-ruler is: an OSM-footprint measure-testify tool producing sealed receipts, what it refuses to do (no invented living area, no survey-grade claims), and the package map of map_ruler/. Ground in README.md and docs/WHY.md.",
+      "parent": null
+    },
+    {
+      "title": "Getting Started",
+      "purpose": "Install paths (pipx via scripts/install-pipx.sh, pip editable with [plot] extra, or PYTHONPATH=. no-install), the four README quickstart commands (measure roof, fence with --vertices, plot, --scale-segment check), dependency story (zero required deps core; matplotlib+Pillow for plot), and running python3 -m unittest discover -s tests -v.",
+      "parent": "Overview"
+    },
+    {
+      "title": "Measure-Testify Doctrine",
+      "purpose": "The doctrine and invariants: fail-closed verdicts (CLEAN/PARTIAL/ABSTAIN/ERROR), scale chain always present, rings embedded in receipts, max-of-chain uncertainty, footprint≠GLA, not a survey, and the no-private-addresses / operator-review-before-push rules from AGENTS.md.",
+      "parent": "Overview"
+    },
+    {
+      "title": "CLI and Measure Pipeline",
+      "purpose": "cli.py / __main__.py commands (measure, plot) and measure.py's pipeline: geocode or --lat/--lon pin → footprints via Overpass or user --vertices → scale → shoelace area → sealed receipt. Cover the features table (roof/building, fence/driveway, parcel), the three --vertices file shapes, and PARTIAL behavior without vertices.",
+      "parent": null
+    },
+    {
+      "title": "Scale Chain and Calibrators",
+      "purpose": "scale.py calibrator protocol: basemap (local equirectangular EN, ~2% small spans), car_sedan (14.5–16.5 ft), parking_stall (~9×18 ft), dual_basemap cross-check, and ground_segment from --scale-segment/--scale-length-ft; plus geometry.py's shoelace/bbox/gla_band math and how combined uncertainty is computed as max of chain.",
+      "parent": null
+    },
+    {
+      "title": "Data Sources, Privacy, and Throttling",
+      "purpose": "geocode.py (Nominatim policy: identifying User-Agent, 1 req/s throttle, self-host for heavy use), footprints.py (Overpass queries, Microsoft footprint sources), tiles.py (basemap tile math for plot), parcel.py (Toronto GIS parcel context, future polygon work), and the privacy rules enforced by test_privacy_regression.py and examples/DEMO_ADDRESS.md.",
+      "parent": null
+    },
+    {
+      "title": "Receipts and Schema",
+      "purpose": "receipt.py: the sealed measure-testify/receipt/v1 record — DISCLAIMER text, SHA-256 seal, coords_latlon rings enabling offline plot, verdict fields — validated against schema/measure-testify-receipt-v1.json; receipts/ directory of committed Ontario-demo dogfood outputs (JSON + PNG).",
+      "parent": null
+    },
+    {
+      "title": "Testing and CI",
+      "purpose": ".github/workflows/ci.yml (pip install -e '.[dev]', unittest discover -s tests -v on ubuntu, 5-min timeout) and the tests/ suite: test_geometry, test_scale_segment, test_vertices, test_tiles_math, test_receipt, test_plot_offline, test_geocode_throttle, test_parcel_presets, test_privacy_regression — note tests are offline by design.",
+      "parent": null
+    },
+    {
+      "title": "Design Documents",
+      "purpose": "docs/WHY.md (the five-step method and motivation), AGENTS.md (layout, commands, invariants, blast-radius and push policy), examples/DEMO_ADDRESS.md (why the Ontario civic site is the only public demo), and CHANGELOG.md.",
+      "parent": null
+    }
+  ]
+}
